@@ -1,7 +1,8 @@
 <template>
-  <div class="vk-tooltip">
+  <div class="vk-tooltip" v-on="OutEvents">
     <!-- vk-tooltip__trigger 是触发区 -->
-    <div class="vk-tooltip__trigger" ref="triggerNode" @click="togglePopper">
+    <!-- v-on="events" 是在动态添加类名，即是 hover 还是 click -->
+    <div class="vk-tooltip__trigger" ref="triggerNode" v-on="events">
       <!-- 默认插槽   想要渲染的就放在这     所以这个插槽就是那个触发区   只不过是用一个 div包裹起来的  因为要加类名 -->
       <slot />
     </div>
@@ -18,7 +19,7 @@ defineOptions({
   name: 'VkTooltip',
 })
 
-import { ref, watch } from 'vue'
+import { ref, watch, reactive } from 'vue'
 import type { TooltipProps, TooltipEmits } from './TooltipTypes'
 import { createPopper } from '@popperjs/core'
 import type { Instance } from '@popperjs/core'
@@ -29,15 +30,30 @@ import type { Instance } from '@popperjs/core'
 // TooltipProps 接口里写的就是你要传递过来的 东西  需要携带的属性的类型
 const props = withDefaults(defineProps<TooltipProps>(), {
   placement: 'bottom',
+  trigger: 'hover',
 })
-
 // 事件
 // TooltipEmits 就是你传递过来的东西身上绑定的事件要满足的类型
 const emits = defineEmits<TooltipEmits>()
+
 // ref变量控制 vk-tooltip__popper 是展示还是隐藏
 const isOpen = ref(false)
+// 要引入   给上边的两个外层div绑定ref   是因为createPopper需要三个参数，其中前两个就是触发区和展示区的DOM 元素，第三个参数是展示区的位置
+// 所以要给两个外层的 div 绑定 ref 属性
+const popperNode = ref<HTMLElement>() // 显示还是隐藏的 div
+const triggerNode = ref<HTMLElement>() //触发区div
+// 用 popperInstance这个变量来保存 Popper.js 的实例
+let popperInstance: null | Instance = null
+//events 动态管理类名  因为触发的事件可能是 click 可能是 hover，如果是click触发对应的事件，如果是hover则触发hover对应的事件
+// 所以初始值是空的对象，里边应该包含的是键值对
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let events: Record<string, any> = reactive({}) // const 赋值的话，以后就不能改了
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let OutEvents: Record<string, any> = reactive({}) //OutEvents 是为了鼠标放在展示区域的内容上，内容也不会隐藏
 
+// 点击事件的回调函数
 const togglePopper = () => {
+  console.log('isOpen.value:', isOpen.value)
   isOpen.value = !isOpen.value
   // 发射事件  是向父组件发送一个通知。
   // 发出的信号，其含义是：“嗨，父组件，我内部的状态变成了可见，特此通知你。”
@@ -50,13 +66,16 @@ const togglePopper = () => {
   // 如果我不发出这个事件，父组件就无法方便地感知到 Tooltip 内部状态的变化。emit相当于组件对外的广播，告诉任何关心它的人：“我的可见状态改变了！”。这是组件化设计的重要原则：通过事件将内部状态的变化暴露给外部世界。
 }
 
-// 要引入   给上边的两个外层div绑定ref   是因为createPopper需要三个参数，其中前两个就是触发区和展示区的DOM 元素，第三个参数是展示区的位置
-// 所以要给两个外层的 div 绑定 ref 属性
-const popperNode = ref<HTMLElement>() // 显示还是隐藏的 div
-const triggerNode = ref<HTMLElement>() //触发区div
-
-// 用 popperInstance这个变量来保存 Popper.js 的实例
-let popperInstance: null | Instance = null
+// 鼠标移入对应的事件   打开展示区
+function open() {
+  isOpen.value = true
+  emits('visible-change', true)
+}
+// 鼠标移出对应的事件
+function close() {
+  isOpen.value = false
+  emits('visible-change', false)
+}
 
 // 监听器 watch(isOpen, ...)来控制 Popper 实例的创建        Popper是用的第三方的库  他可以方便我们控制内容展示的位置
 // 这个监听器的作用是响应状态变化，并执行与之相关的“副作用”逻辑。
@@ -68,8 +87,8 @@ watch(
   (newValue) => {
     // 当isOpen的值改变，并且他的新的值（newValue）为true 的时候，会执行下边的if
     if (newValue) {
+      // 添加类型守卫：确保两个 DOM 引用都不为 undefined  不然ts会推断triggerNode.value可能为undefined
       if (triggerNode.value && popperNode.value) {
-        // 添加类型守卫：确保两个 DOM 引用都不为 undefined  不然ts会推断triggerNode.value可能为undefined
         popperInstance = createPopper(triggerNode.value, popperNode.value, {
           // 把父组件传进来的props.placement赋值给placement
           placement: props.placement,
@@ -85,6 +104,66 @@ watch(
   //它告诉 Vue 的 watch回调，等待组件由于 isOpen变化而引发的 DOM 更新真正完成之后再执行
   { flush: 'post' },
 )
+
+// 类名是根据 trigger 来的 ，所以 watch trigger
+//
+watch(
+  () => props.trigger,
+  (newTrigger, oldTrigger) => {
+    if (newTrigger !== oldTrigger) {
+      //他俩指不相等就说明trigger改变了
+      // 清空之前的类名
+      events = {}
+      OutEvents = {}
+      // 根据此时的类名，触发对应的事件
+      // 动态添加此时的类名
+      attachEvents()
+    }
+  },
+)
+
+// 动态添加类名   的处理事件函数
+// 注意这里只是给events、OutEvents添加对应的键值对，即mouseenter：open 类似这样，并不会直接触发函数
+// 真正触发函数是在上边的 watch 里检测到 props的属性值改变 了，调用了对应的函数
+const attachEvents = () => {
+  if (props.trigger === 'hover') {
+    // 鼠标移入， 对应的事件是open  // 赋值函数引用，不加括号
+    events['mouseenter'] = open
+    // 鼠标移出，对应的事件是close
+    OutEvents['mouseleave'] = close //即当鼠标移出OutEvents绑定的盒子的区域的事件发生时，执行 close函数
+  } else if (props.trigger === 'click') {
+    // 直接调用之前给 click 绑定的事件回调函数
+    events['click'] = togglePopper // 赋值函数引用，不是调用！   不是直接togglePopper()
+  }
+}
+// 自己直接调用
+attachEvents()
 </script>
 
 <style></style>
+
+<!-- 其中togglePopper 、open、close事件都是怎么触发的-->
+<!-- 1. togglePopper函数的触发路径
+触发源头：用户的点击操作。
+具体流程：
+当 props.trigger被设置为 'click'时，attachEvents函数会执行 events['click'] = togglePopper。
+这行代码将 togglePopper函数引用（注意不是执行结果）赋值给了 events对象的 click属性。
+在模板中，触发区的 div 通过 v-on="events"绑定了这个动态事件对象。
+当用户点击这个 div 或其中的插槽内容（如图标）时，浏览器产生一个 click事件。
+事件冒泡到绑定了 v-on="events"的 div 上。
+Vue 在 events对象中查找 click属性对应的处理函数，找到并执行 togglePopper。  !!
+关键点：这是一个标准的事件监听-处理模式。函数本身被“寄存”在事件对象中，等待特定的事件（click）发生时才被调用。 -->
+
+<!-- 2. open和 close函数的触发路径
+触发源头：用户的鼠标悬停操作。
+具体流程：
+当 props.trigger被设置为 'hover'时，attachEvents函数会执行：
+events['mouseenter'] = open
+OutEvents['mouseleave'] = close
+这分别将 open和 close函数引用赋值给不同的事件对象。
+在模板中：
+触发区的 div 通过 v-on="events"监听 mouseenter事件。
+最外层的容器 div 通过 v-on="OutEvents"监听 mouseleave事件。
+当用户鼠标移入触发区时，触发 mouseenter事件，执行 open函数，打开 Tooltip。
+当用户鼠标移出整个 Tooltip 组件（包括触发区和弹出的内容区）时，触发 mouseleave事件，执行 close函数，关闭 Tooltip。
+设计巧思：这里使用两个不同容器监听不同事件，是为了实现更好的用户体验。将 mouseleave绑定在外层容器，可以确保当鼠标从触发区移动到弹出的内容区时，Tooltip 不会立即关闭。 -->

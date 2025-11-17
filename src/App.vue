@@ -34,9 +34,11 @@
     </Collapse>
     <!-- {{ openedValue }} -->
   </main>
+
   <Icon :icon="['fas', 'user-secret']" type="danger" />
   <Icon :icon="['fas', 'user-secret']" color="#0e7a0d" /><br /><br />
-  <Tooltip content="Hello" placement="right">
+
+  <Tooltip content="Hello" :trigger="trigger">
     <Icon :icon="['fas', 'arrow-up']" size="sm" spin type="primary" />
     <template #content>
       <h1>Hello srz</h1>
@@ -58,6 +60,9 @@ import Tooltip from './components/Tooltip/Tooltip.vue'
 // Button
 const buttonRef = ref<ButtonInstance | null>(null)
 
+// Tooltip
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const trigger = ref<any>('click')
 onMounted(() => {
   // console.log(buttonRef.value)           // Proxy(AppButton)
   // console.log(buttonRef.value.ref)       // HTMLButtonElement
