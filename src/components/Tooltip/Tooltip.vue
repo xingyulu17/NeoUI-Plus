@@ -1,5 +1,5 @@
 <template>
-  <div class="vk-tooltip" v-on="OutEvents">
+  <div class="vk-tooltip" v-on="OutEvents" ref="popperContainerNode">
     <!-- vk-tooltip__trigger 是触发区 -->
     <!-- v-on="events" 是在动态添加类名，即是 hover 还是 click -->
     <div class="vk-tooltip__trigger" ref="triggerNode" v-on="events">
@@ -23,6 +23,7 @@ import { ref, watch, reactive } from 'vue'
 import type { TooltipProps, TooltipEmits } from './TooltipTypes'
 import { createPopper } from '@popperjs/core'
 import type { Instance } from '@popperjs/core'
+import useClickOutside from '@/hooks/useClickOutside'
 
 // defineProps、defineEmits，是因为你在 App.vue 中肯定是要调用现在这个组件Tooltip.vue的，
 // 那么肯定要传递一些东西到Tooltip.vue组件（Tooltip.vue而且这个组件也写了插槽）
@@ -51,6 +52,16 @@ let events: Record<string, any> = reactive({}) // const 赋值的话，以后就
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let OutEvents: Record<string, any> = reactive({}) //OutEvents 是为了鼠标放在展示区域的内容上，内容也不会隐藏
 
+// 获取上边最外边的DOM节点  实现点击节点外侧的区域也可以实现隐藏内容
+const popperContainerNode = ref<HTMLElement>()
+
+// 调用点击外侧区域 实现隐藏内容的钩子函数
+useClickOutside(popperContainerNode, () => {
+  if (props.trigger === 'click' && isOpen.value) {
+    //必须要是点击事件，并且此时内容是已经打开的
+    close()
+  }
+})
 // 点击事件的回调函数
 const togglePopper = () => {
   console.log('isOpen.value:', isOpen.value)
