@@ -1,7 +1,7 @@
 <template>
   <main>
-    <AppButton ref="buttonRef">Test Button</AppButton>
-    <AppButton plain>Plain AppButton</AppButton>
+    <AppButton ref="buttonRef" @click="open">Test Button</AppButton>
+    <AppButton plain @click="close">Plain AppButton</AppButton>
     <AppButton round>Round AppButton</AppButton>
     <AppButton circle>VK</AppButton>
     <AppButton disabled>Disabled AppButton</AppButton><br /><br />
@@ -38,7 +38,8 @@
   <Icon :icon="['fas', 'user-secret']" type="danger" />
   <Icon :icon="['fas', 'user-secret']" color="#0e7a0d" /><br /><br />
 
-  <Tooltip content="Hello" :trigger="trigger">
+  <!-- manual 启动自己手动触发事件 -->
+  <Tooltip content="Hello" :trigger="trigger" manual ref="tooltipRef">
     <Icon :icon="['fas', 'arrow-up']" size="sm" spin type="primary" />
     <template #content>
       <h1>Hello srz</h1>
@@ -56,6 +57,18 @@ import { ref, onMounted } from 'vue'
 // 导入图标
 import Icon from './components/Icon/Icon.vue'
 import Tooltip from './components/Tooltip/Tooltip.vue'
+import type { TooltipInstance } from './components/Tooltip/TooltipTypes'
+
+// 创建 TooltipInstance 的实例tooltipRef，并且给Tooltip绑定ref，那么我们就可以拿到TooltipInstance里的两个方法
+const tooltipRef = ref<TooltipInstance | null>(null)
+
+// 定义tooltipRef身上的两个方法        就可以是在任意组件身上绑定点击事件的回调函数
+const open = () => {
+  tooltipRef.value?.show()
+}
+const close = () => {
+  tooltipRef.value?.hide()
+}
 
 // Button
 const buttonRef = ref<ButtonInstance | null>(null)

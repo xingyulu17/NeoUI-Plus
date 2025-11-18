@@ -19,8 +19,8 @@ defineOptions({
   name: 'VkTooltip',
 })
 
-import { ref, watch, reactive } from 'vue'
-import type { TooltipProps, TooltipEmits } from './TooltipTypes'
+import { ref, watch, reactive, onUnmounted } from 'vue'
+import type { TooltipProps, TooltipEmits, TooltipInstance } from './TooltipTypes'
 import { createPopper } from '@popperjs/core'
 import type { Instance } from '@popperjs/core'
 import useClickOutside from '@/hooks/useClickOutside'
@@ -57,8 +57,8 @@ const popperContainerNode = ref<HTMLElement>()
 
 // 调用点击外侧区域 实现隐藏内容的钩子函数
 useClickOutside(popperContainerNode, () => {
-  if (props.trigger === 'click' && isOpen.value) {
-    //必须要是点击事件，并且此时内容是已经打开的
+  if (props.trigger === 'click' && isOpen.value && !props.manual) {
+    //必须要是点击事件，并且此时内容是已经打开的    而且此时不是用户自己触发事件
     close()
   }
 })
@@ -87,34 +87,6 @@ function close() {
   isOpen.value = false
   emits('visible-change', false)
 }
-
-// 监听器 watch(isOpen, ...)来控制 Popper 实例的创建        Popper是用的第三方的库  他可以方便我们控制内容展示的位置
-// 这个监听器的作用是响应状态变化，并执行与之相关的“副作用”逻辑。
-// 在这里，最主要的副作用就是管理 Popper.js 实例的生命周期。
-// 即如果 isOpen为 true，此时提示框的 DOM 已准备好，于是创建 Popper 实例进行精确定位。
-//如果 isOpen为 false，则销毁 Popper 实例以释放资源。
-watch(
-  isOpen,
-  (newValue) => {
-    // 当isOpen的值改变，并且他的新的值（newValue）为true 的时候，会执行下边的if
-    if (newValue) {
-      // 添加类型守卫：确保两个 DOM 引用都不为 undefined  不然ts会推断triggerNode.value可能为undefined
-      if (triggerNode.value && popperNode.value) {
-        popperInstance = createPopper(triggerNode.value, popperNode.value, {
-          // 把父组件传进来的props.placement赋值给placement
-          placement: props.placement,
-        })
-      }
-      // 当需要展示内容的时候   还应该发射事件
-      emits('click-outside', true)
-    } else {
-      // isOpen为false，不展示内容，则销毁实例
-      popperInstance?.destroy()
-    }
-  },
-  //它告诉 Vue 的 watch回调，等待组件由于 isOpen变化而引发的 DOM 更新真正完成之后再执行
-  { flush: 'post' },
-)
 
 // 类名是根据 trigger 来的 ，所以 watch trigger
 //
@@ -147,8 +119,64 @@ const attachEvents = () => {
     events['click'] = togglePopper // 赋值函数引用，不是调用！   不是直接togglePopper()
   }
 }
-// 自己直接调用
-attachEvents()
+// 自己直接调用  当没有选择用户自己手动触发时候
+if (!props.manual) {
+  attachEvents()
+}
+
+// 监听器 watch(isOpen, ...)来控制 Popper 实例的创建        Popper是用的第三方的库  他可以方便我们控制内容展示的位置
+// 这个监听器的作用是响应状态变化，并执行与之相关的“副作用”逻辑。
+// 在这里，最主要的副作用就是管理 Popper.js 实例的生命周期。
+// 即如果 isOpen为 true，此时提示框的 DOM 已准备好，于是创建 Popper 实例进行精确定位。
+//如果 isOpen为 false，则销毁 Popper 实例以释放资源。
+watch(
+  isOpen,
+  (newValue) => {
+    // 当isOpen的值改变，并且他的新的值（newValue）为true 的时候，会执行下边的if
+    if (newValue) {
+      // 添加类型守卫：确保两个 DOM 引用都不为 undefined  不然ts会推断triggerNode.value可能为undefined
+      if (triggerNode.value && popperNode.value) {
+        popperInstance = createPopper(triggerNode.value, popperNode.value, {
+          // 把父组件传进来的props.placement赋值给placement
+          placement: props.placement,
+        })
+      }
+      // 当需要展示内容的时候   还应该发射事件
+      emits('click-outside', true)
+    } else {
+      // isOpen为false，不展示内容，则销毁实例
+      popperInstance?.destroy()
+    }
+  },
+  //它告诉 Vue 的 watch回调，等待组件由于 isOpen变化而引发的 DOM 更新真正完成之后再执行
+  { flush: 'post' },
+)
+
+// 卸载时   做的一个优化
+onUnmounted(() => {
+  popperInstance?.destroy()
+})
+
+// 监控是不是用户自己触发事件  因为只监控props上的一个属性，所以第一个参数要写成 getter方式
+watch(
+  () => props.manual,
+  () => {
+    if (props.manual) {
+      // 启动手动触发
+      // 把类名清空
+      events = {}
+      OutEvents = {}
+    } else {
+      attachEvents()
+    }
+  },
+)
+
+// 把 show hide 方法暴露出去         需要暴露给用户的东西就这么写
+defineExpose<TooltipInstance>({
+  show: open,
+  hide: close,
+})
 </script>
 
 <style></style>
