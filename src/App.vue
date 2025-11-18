@@ -39,7 +39,7 @@
   <Icon :icon="['fas', 'user-secret']" color="#0e7a0d" /><br /><br />
 
   <!-- manual 启动自己手动触发事件 -->
-  <Tooltip content="Hello" :trigger="trigger" manual ref="tooltipRef">
+  <Tooltip content="Hello" :trigger="trigger" ref="tooltipRef" :popper-options="options">
     <Icon :icon="['fas', 'arrow-up']" size="sm" spin type="primary" />
     <template #content>
       <h1>Hello srz</h1>
@@ -53,6 +53,8 @@ import Collapse from './components/Collapse/Collapse.vue'
 import Item from './components/Collapse/CollapseItem.vue'
 import type { ButtonInstance } from './components/Button/ButtonTypes'
 import { ref, onMounted } from 'vue'
+import type { Options } from '@popperjs/core'
+
 // import type { CollapseProps } from '../src/components/Collapse/CollapseTypes'
 // 导入图标
 import Icon from './components/Icon/Icon.vue'
@@ -70,12 +72,18 @@ const close = () => {
   tooltipRef.value?.hide()
 }
 
+// 8-7 给 Tooltip 定义一些新熟悉      就是可以批量修改 popper中的一些属性   因为展开的内容显示在哪里 是用的 popper
+const options: Partial<Options> = {
+  placement: 'top-start',
+  strategy: 'fixed',
+}
+
 // Button
 const buttonRef = ref<ButtonInstance | null>(null)
 
 // Tooltip
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const trigger = ref<any>('click')
+const trigger = ref<any>('hover')
 onMounted(() => {
   // console.log(buttonRef.value)           // Proxy(AppButton)
   // console.log(buttonRef.value.ref)       // HTMLButtonElement

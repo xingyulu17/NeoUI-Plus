@@ -6,11 +6,14 @@
       <!-- 默认插槽   想要渲染的就放在这     所以这个插槽就是那个触发区   只不过是用一个 div包裹起来的  因为要加类名 -->
       <slot />
     </div>
-    <!-- vk-tooltip__popper 是内容展示区    隐藏还是展示 -->
-    <div class="vk-tooltip__popper" v-if="isOpen" ref="popperNode">
-      <!-- 带名字的插槽  展示内容，要么默认值  要么就展示传递过来的 -->
-      <slot name="content">{{ content }}</slot>
-    </div>
+    <!-- 展示区用动画包裹 -->
+    <Transition :name="transition">
+      <!-- vk-tooltip__popper 是内容展示区    隐藏还是展示 -->
+      <div class="vk-tooltip__popper" v-if="isOpen" ref="popperNode">
+        <!-- 带名字的插槽  展示内容，要么默认值  要么就展示传递过来的 -->
+        <slot name="content">{{ content }}</slot>
+      </div>
+    </Transition>
   </div>
 </template>
 <script setup lang="ts">
@@ -19,12 +22,22 @@ defineOptions({
   name: 'VkTooltip',
 })
 
-import { ref, watch, reactive, onUnmounted } from 'vue'
+import { ref, watch, reactive, onUnmounted, computed } from 'vue'
 import type { TooltipProps, TooltipEmits, TooltipInstance } from './TooltipTypes'
 import { createPopper } from '@popperjs/core'
 import type { Instance } from '@popperjs/core'
 import useClickOutside from '@/hooks/useClickOutside'
 
+import { debounce } from 'lodash-es' //防抖
+
+// 计算一些属性值   比如放在哪里   布局是什么
+const popperOptions = computed(() => {
+  //  //因为我们给placements设置了默认值，但是props.popperOptions里也有placements，这里有一个优先级的问题，所以用 computed 进行混入
+  return {
+    placements: props.placement,
+    ...props.popperOptions,
+  }
+})
 // defineProps、defineEmits，是因为你在 App.vue 中肯定是要调用现在这个组件Tooltip.vue的，
 // 那么肯定要传递一些东西到Tooltip.vue组件（Tooltip.vue而且这个组件也写了插槽）
 // 接收 props 并且给设置默认值
@@ -32,6 +45,9 @@ import useClickOutside from '@/hooks/useClickOutside'
 const props = withDefaults(defineProps<TooltipProps>(), {
   placement: 'bottom',
   trigger: 'hover',
+  transition: 'fade', //默认的动画效果是渐隐
+  openDelay: 1000,
+  closeDelay: 1000,
 })
 // 事件
 // TooltipEmits 就是你传递过来的东西身上绑定的事件要满足的类型
@@ -59,7 +75,7 @@ const popperContainerNode = ref<HTMLElement>()
 useClickOutside(popperContainerNode, () => {
   if (props.trigger === 'click' && isOpen.value && !props.manual) {
     //必须要是点击事件，并且此时内容是已经打开的    而且此时不是用户自己触发事件
-    close()
+    closeFinal()
   }
 })
 // 点击事件的回调函数
@@ -77,17 +93,39 @@ const togglePopper = () => {
   // 如果我不发出这个事件，父组件就无法方便地感知到 Tooltip 内部状态的变化。emit相当于组件对外的广播，告诉任何关心它的人：“我的可见状态改变了！”。这是组件化设计的重要原则：通过事件将内部状态的变化暴露给外部世界。
 }
 
+let openTimes = 0 // 是为了看如果不用debounce，会多次触发事件
+let closeTimes = 0
+
 // 鼠标移入对应的事件   打开展示区
 function open() {
+  openTimes++
+  console.log('open times', openTimes)
   isOpen.value = true
   emits('visible-change', true)
 }
 // 鼠标移出对应的事件
 function close() {
+  closeTimes++
+  console.log('close times', closeTimes)
   isOpen.value = false
   emits('visible-change', false)
 }
 
+// 用 debounce 包装，防抖，就不需要  setTimeout         防止用户频繁触发事件，浪费资源
+const openDebounce = debounce(open, props.openDelay)
+const closeDebounce = debounce(close, props.closeDelay)
+
+// 再次包装 每次执行打开  都把之前的关闭取消掉
+const openFinal = () => {
+  //这是最终版的打开函数
+  closeDebounce.cancel()
+  openDebounce()
+}
+const closeFinal = () => {
+  //这是最终版的关闭函数
+  openDebounce.cancel()
+  closeDebounce()
+}
 // 类名是根据 trigger 来的 ，所以 watch trigger
 //
 watch(
@@ -111,9 +149,9 @@ watch(
 const attachEvents = () => {
   if (props.trigger === 'hover') {
     // 鼠标移入， 对应的事件是open  // 赋值函数引用，不加括号
-    events['mouseenter'] = open
+    events['mouseenter'] = openFinal
     // 鼠标移出，对应的事件是close
-    OutEvents['mouseleave'] = close //即当鼠标移出OutEvents绑定的盒子的区域的事件发生时，执行 close函数
+    OutEvents['mouseleave'] = closeFinal //即当鼠标移出OutEvents绑定的盒子的区域的事件发生时，执行 close函数
   } else if (props.trigger === 'click') {
     // 直接调用之前给 click 绑定的事件回调函数
     events['click'] = togglePopper // 赋值函数引用，不是调用！   不是直接togglePopper()
@@ -136,10 +174,7 @@ watch(
     if (newValue) {
       // 添加类型守卫：确保两个 DOM 引用都不为 undefined  不然ts会推断triggerNode.value可能为undefined
       if (triggerNode.value && popperNode.value) {
-        popperInstance = createPopper(triggerNode.value, popperNode.value, {
-          // 把父组件传进来的props.placement赋值给placement
-          placement: props.placement,
-        })
+        popperInstance = createPopper(triggerNode.value, popperNode.value, popperOptions.value)
       }
       // 当需要展示内容的时候   还应该发射事件
       emits('click-outside', true)
@@ -174,8 +209,8 @@ watch(
 
 // 把 show hide 方法暴露出去         需要暴露给用户的东西就这么写
 defineExpose<TooltipInstance>({
-  show: open,
-  hide: close,
+  show: openFinal,
+  hide: closeFinal,
 })
 </script>
 
