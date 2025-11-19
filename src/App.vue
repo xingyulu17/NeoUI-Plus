@@ -1,4 +1,11 @@
 <template>
+  <Dropdown placement="right-end" :trigger="trigger" :menu-options="optionsDropdown">
+    <img src="./assets/logo.svg" alt="" width="125" height="125" />
+  </Dropdown>
+  <br /><br />
+  <DropdownTSX placement="bottom" :trigger="trigger" :menu-options="optionsDropdown">
+    <img src="./assets/logo.svg" alt="" width="125" height="125" />
+  </DropdownTSX>
   <main>
     <AppButton ref="buttonRef" @click="open">Test Button</AppButton>
     <AppButton plain @click="close">Plain AppButton</AppButton>
@@ -35,8 +42,7 @@
     <!-- {{ openedValue }} -->
   </main>
 
-  <Icon :icon="['fas', 'user-secret']" type="danger" />
-  <Icon :icon="['fas', 'user-secret']" color="#0e7a0d" /><br /><br />
+  <Icon :icon="['fas', 'user-secret']" type="danger" /><br /><br />
 
   <!-- manual 启动自己手动触发事件 -->
   <Tooltip content="Hello" :trigger="trigger" ref="tooltipRef" :popper-options="options">
@@ -51,8 +57,11 @@
 import AppButton from '../src/components/Button/AppButton.vue'
 import Collapse from './components/Collapse/Collapse.vue'
 import Item from './components/Collapse/CollapseItem.vue'
+import Dropdown from './components/Dropdown/Dropdown.vue'
+import DropdownTSX from './components/Dropdown/Dropdown'
 import type { ButtonInstance } from './components/Button/ButtonTypes'
-import { ref, onMounted } from 'vue'
+import type { MenuOption } from './components/Tooltip/TooltipTypes'
+import { ref, onMounted, h } from 'vue'
 import type { Options } from '@popperjs/core'
 
 // import type { CollapseProps } from '../src/components/Collapse/CollapseTypes'
@@ -83,7 +92,7 @@ const buttonRef = ref<ButtonInstance | null>(null)
 
 // Tooltip
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const trigger = ref<any>('hover')
+const trigger = ref<any>('click')
 onMounted(() => {
   // console.log(buttonRef.value)           // Proxy(AppButton)
   // console.log(buttonRef.value.ref)       // HTMLButtonElement
@@ -95,6 +104,15 @@ onMounted(() => {
 // Collapse
 // 让初始的时候默认展示 a
 const openedValue = ref(['a'])
+
+// Dropdown
+// h是 "createElement"（创建元素）的缩写，用于创建虚拟 DOM 节点（VNode）。
+const optionsDropdown: MenuOption[] = [
+  { key: 1, label: h('b', 'this is bold') }, //b是加粗的意思
+  { key: 2, label: 'item2', disabled: true },
+  { key: 3, label: 'item3', divided: true },
+  { key: 4, label: 'item4' },
+]
 </script>
 
 <style scoped></style>

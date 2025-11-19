@@ -12,6 +12,8 @@
       <div class="vk-tooltip__popper" v-if="isOpen" ref="popperNode">
         <!-- 带名字的插槽  展示内容，要么默认值  要么就展示传递过来的 -->
         <slot name="content">{{ content }}</slot>
+        <!-- 通过下边div节点来创建一个箭头 -->
+        <div id="arrow" data-popper-arrow></div>
       </div>
     </Transition>
   </div>
@@ -35,6 +37,15 @@ const popperOptions = computed(() => {
   //  //因为我们给placements设置了默认值，但是props.popperOptions里也有placements，这里有一个优先级的问题，所以用 computed 进行混入
   return {
     placements: props.placement,
+    // 修改展示区域内容的一些样式
+    modifiers: [
+      {
+        name: 'offset',
+        options: {
+          offset: [0, 9],
+        },
+      },
+    ],
     ...props.popperOptions,
   }
 })
